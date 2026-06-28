@@ -7,20 +7,16 @@ from pipeline.clipper import fix_overlapping_clips, create_clip
 @celery_app.task(bind=True)
 def generate_clips_task(self, url: str, num_clips: int = 5):
     try:
-        # Step 1
         self.update_state(state="PROGRESS", meta={"status": "Downloading video...", "step": 1, "total": 4})
         video_info = download_video(url)
 
-        # Step 2
         self.update_state(state="PROGRESS", meta={"status": "Transcribing audio...", "step": 2, "total": 4})
         segments = transcribe_video(video_info["video_path"])
 
-        # Step 3
         self.update_state(state="PROGRESS", meta={"status": "AI analyzing best segments...", "step": 3, "total": 4})
         clips = analyze_transcript(segments, video_info["duration"], num_clips=num_clips)
         clips = fix_overlapping_clips(clips, video_info["duration"])
 
-        # Step 4
         results = []
         for i, clip in enumerate(clips):
             self.update_state(
@@ -52,5 +48,5 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
         }
 
     except Exception as e:
-        self.update_state(state="FAILURE", meta={"status": str(e)})
-        raise
+        self.update_state(state="FAILURE", meta={"status": str(e), "step": 0, "total": 4})
+        return {"status": "error", "error": str(e)}
