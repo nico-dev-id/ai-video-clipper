@@ -1,0 +1,15 @@
+ai-video-clipper/
+├── backend/
+│   ├── main.py
+│   ├── tasks.py
+│   ├── pipeline/
+│   │   ├── downloader.py      ← yt-dlp
+│   │   ├── transcriber.py     ← Whisper
+│   │   ├── analyzer.py        ← Groq
+│   │   └── clipper.py         ← MoviePy + subtitle + watermark
+│   ├── requirements.txt
+│   └── .env
+├── frontend/
+│   ├── app/
+│   └── ...
+└── .gitignore
