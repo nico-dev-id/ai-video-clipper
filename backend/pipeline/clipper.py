@@ -141,8 +141,8 @@ def create_clip(
 
     # --- WATERMARK ---
     watermark_array = make_text_image(
-        text=f"Source: {source_channel}",
-        font_size=50,
+        text=f"Source: Youtube/{source_channel}",
+        font_size=40,
         width=W - 80,
         color=(255, 255, 255),  # putih
         stroke=4,
