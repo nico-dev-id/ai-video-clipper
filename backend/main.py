@@ -33,15 +33,20 @@ def get_status(task_id: str):
     result = AsyncResult(task_id, app=celery_app)
 
     if result.state == "PENDING":
-        return {"state": "PENDING", "status": "Waiting in queue..."}
+        return {"state": "PENDING", "status": "Waiting in queue...", "percent": 0}
     elif result.state == "PROGRESS":
-        return {"state": "PROGRESS", "status": result.info.get("status", ""), "step": result.info.get("step", 0), "total": result.info.get("total", 4)}
+        info = result.info or {}
+        return {
+            "state": "PROGRESS",
+            "status": info.get("status", ""),
+            "percent": info.get("percent", 0),
+        }
     elif result.state == "SUCCESS":
         return {"state": "SUCCESS", "result": result.result}
     elif result.state == "FAILURE":
         return {"state": "FAILURE", "status": str(result.info)}
     else:
-        return {"state": result.state, "status": "Processing..."}
+        return {"state": result.state, "status": "Processing...", "percent": 0}
 
 @app.get("/")
 def root():

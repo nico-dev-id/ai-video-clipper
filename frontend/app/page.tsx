@@ -16,13 +16,14 @@ interface GenerateResponse {
   channel: string;
   duration: number;
   clips: Clip[];
+  status?: string;
+  error?: string;
 }
 
 interface StatusResponse {
   state: string;
   status?: string;
-  step?: number;
-  total?: number;
+  percent?: number;
   result?: GenerateResponse;
 }
 
@@ -31,7 +32,7 @@ export default function Home() {
   const [numClips, setNumClips] = useState(5);
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("");
-  const [step, setStep] = useState(0);
+  const [percent, setPercent] = useState(0);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState("");
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -57,11 +58,16 @@ export default function Home() {
 
         if (data.state === "PROGRESS") {
           setStatusText(data.status || "");
-          setStep(data.step || 0);
+          setPercent(data.percent || 0);
         } else if (data.state === "SUCCESS") {
           stopPolling();
-          setResult(data.result!);
+          if (data.result?.status === "error") {
+            setError(data.result.error || "Terjadi kesalahan.");
+          } else {
+            setResult(data.result!);
+          }
           setLoading(false);
+          setPercent(100);
         } else if (data.state === "FAILURE") {
           stopPolling();
           setError("Proses gagal: " + data.status);
@@ -81,7 +87,7 @@ export default function Home() {
     setError("");
     setResult(null);
     setStatusText("Mengirim task ke queue...");
-    setStep(0);
+    setPercent(0);
 
     try {
       const response = await axios.post<{ task_id: string }>(
@@ -101,7 +107,12 @@ export default function Home() {
     return `${m}m ${s}s`;
   };
 
-  const steps = ["Download", "Transkripsi", "Analisis AI", "Render Clips"];
+  const steps = [
+    { label: "Download", threshold: 20 },
+    { label: "Transkripsi", threshold: 50 },
+    { label: "Analisis AI", threshold: 65 },
+    { label: "Render Clips", threshold: 100 },
+  ];
 
   return (
     <main className="min-h-screen bg-[#0a0a0f] text-white">
@@ -162,6 +173,7 @@ export default function Home() {
                 <button
                   key={n}
                   onClick={() => setNumClips(n)}
+                  disabled={loading}
                   className={`w-9 h-9 rounded-lg text-sm font-semibold transition-all ${
                     numClips === n
                       ? "bg-indigo-600 text-white"
@@ -182,34 +194,36 @@ export default function Home() {
               <div className="relative w-10 h-10 flex-shrink-0">
                 <div className="w-10 h-10 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-white font-semibold">{statusText}</p>
                 <p className="text-gray-600 text-sm">Jangan tutup halaman ini</p>
               </div>
+              <div className="text-indigo-400 font-bold text-2xl">
+                {percent}%
+              </div>
             </div>
 
-            {/* Step indicators */}
-            <div className="flex items-center gap-2">
-              {steps.map((s, i) => (
-                <div key={s} className="flex items-center gap-2 flex-1">
-                  <div className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
-                    i + 1 < step ? "bg-indigo-500" :
-                    i + 1 === step ? "bg-indigo-500 animate-pulse" :
-                    "bg-white/10"
-                  }`} />
-                  {i === steps.length - 1 && (
-                    <span className={`text-xs whitespace-nowrap ${
-                      i + 1 <= step ? "text-indigo-400" : "text-gray-600"
-                    }`}>{s}</span>
-                  )}
-                </div>
-              ))}
+            {/* Progress bar */}
+            <div className="w-full bg-white/10 rounded-full h-2 mb-4">
+              <div
+                className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-700"
+                style={{ width: `${percent}%` }}
+              />
             </div>
-            <div className="flex justify-between mt-1">
-              {steps.map((s, i) => (
-                <span key={s} className={`text-xs ${
-                  i + 1 <= step ? "text-indigo-400" : "text-gray-600"
-                }`}>{s}</span>
+
+            {/* Step labels */}
+            <div className="flex justify-between">
+              {steps.map((s) => (
+                <div key={s.label} className="flex flex-col items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full transition-all duration-500 ${
+                    percent >= s.threshold ? "bg-indigo-500" : "bg-white/20"
+                  }`} />
+                  <span className={`text-xs transition-all duration-500 ${
+                    percent >= s.threshold ? "text-indigo-400" : "text-gray-600"
+                  }`}>
+                    {s.label}
+                  </span>
+                </div>
               ))}
             </div>
           </div>
@@ -219,7 +233,15 @@ export default function Home() {
         {error && (
           <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 text-red-400">
             <span className="text-lg mt-0.5">⚠️</span>
-            <p>{error}</p>
+            <div>
+              <p className="font-semibold mb-1">Terjadi Kesalahan</p>
+              <p className="text-sm text-red-300">{error}</p>
+              {error.includes("rate limit") || error.includes("quota") || error.includes("429") ? (
+                <p className="text-sm text-yellow-400 mt-2">
+                  💡 AI sedang kena rate limit. Tunggu beberapa menit lalu coba lagi.
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
 

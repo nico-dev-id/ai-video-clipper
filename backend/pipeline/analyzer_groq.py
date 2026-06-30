@@ -1,4 +1,4 @@
-from groq import Groq
+import google.generativeai as genai
 from dotenv import load_dotenv
 import os
 import json
@@ -6,7 +6,8 @@ import time
 
 load_dotenv()
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 MAX_CHARS_PER_CHUNK = 6000
 
@@ -37,12 +38,8 @@ Return ONLY this JSON:
 }}
 """
         try:
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-            )
-            raw = response.choices[0].message.content
+            response = model.generate_content(prompt)
+            raw = response.text
             clean = raw.replace("```json", "").replace("```", "").strip()
             data = json.loads(clean)
 
@@ -54,7 +51,7 @@ Return ONLY this JSON:
         except Exception as e:
             scored.append({**chunk, "score": 3, "score_reason": f"scoring failed: {str(e)}"})
 
-        time.sleep(2)
+        time.sleep(1)
 
     return scored
 
@@ -135,15 +132,11 @@ Return:
   ]
 }}
 """
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-    )
-    raw = response.choices[0].message.content
+    response = model.generate_content(prompt)
+    raw = response.text
     clean = raw.replace("```json", "").replace("```", "").strip()
     data = json.loads(clean)
-    time.sleep(2)
+    time.sleep(1)
     return data["clips"]
 
 
