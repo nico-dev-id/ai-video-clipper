@@ -196,6 +196,7 @@ You are a viral YouTube Shorts content strategist for Indonesian audience. Based
 
 Return ONLY this JSON, no explanation:
 {{
+  "title": "catchy SEO-friendly video title in Indonesian, max 60 characters, no clickbait but intriguing",
   "hook": "provocative question or shocking statement max 5 words in Indonesian",
   "benefit": "what viewer will gain max 5 words in Indonesian",
   "description": "2-3 sentences in Indonesian that feels relatable to daily life, creates emotional connection, and makes people want to watch. End with a call to action.",
@@ -203,8 +204,9 @@ Return ONLY this JSON, no explanation:
 }}
 
 Rules:
+- title: max 60 characters, SEO-friendly, natural Indonesian, intriguing but not misleading
 - hook and benefit: SHORT, max 5 words, ALL CAPS, provocative
-- description: conversational Indonesian, relatable, emotional, end with CTA like "Tonton sampai habis!" or "Share ke yang butuh ini!"
+- description: conversational Indonesian, relatable, emotional, end with CTA
 - hashtags: mix of Indonesian viral hashtags + topic-specific, 8 hashtags total
 
 TRANSCRIPT:
@@ -221,6 +223,7 @@ TRANSCRIPT:
         data = json.loads(clean)
         time.sleep(1)
         return {
+            "title": data.get("title", ""),
             "hook": data.get("hook", "RAHASIA TERUNGKAP"),
             "benefit": data.get("benefit", "HIDUP BERUBAH SETELAH INI"),
             "description": data.get("description", ""),
@@ -228,8 +231,63 @@ TRANSCRIPT:
         }
     except Exception:
         return {
+            "title": "",
             "hook": "RAHASIA TERUNGKAP",
             "benefit": "HIDUP BERUBAH SETELAH INI",
             "description": "",
             "hashtags": "#shorts #viral #fyp #indonesia",
         }
+
+def translate_segments_to_indonesian(segments: list[dict]) -> list[dict]:
+    """
+    Translate segments ke Bahasa Indonesia dalam 1 API call.
+    Kirim semua teks sekaligus, hemat token.
+    """
+    # Gabungkan semua teks dengan separator unik
+    combined = "\n".join([f"[{i}] {seg['text']}" for i, seg in enumerate(segments)])
+
+    prompt = f"""Translate ALL of the following text segments to natural Bahasa Indonesia.
+Keep the [number] prefix exactly as is. Only translate the text after the prefix.
+Return ONLY the translated lines, nothing else.
+
+{combined}"""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        raw = response.choices[0].message.content.strip()
+        lines = raw.split("\n")
+
+        translated = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # Parse [index] text
+            if line.startswith("[") and "]" in line:
+                idx_end = line.index("]")
+                try:
+                    idx = int(line[1:idx_end])
+                    text = line[idx_end+1:].strip()
+                    if idx < len(segments):
+                        translated.append({
+                            "start": segments[idx]["start"],
+                            "end": segments[idx]["end"],
+                            "text": text,
+                        })
+                except ValueError:
+                    continue
+
+        # Fallback kalau translate gagal atau tidak lengkap
+        if len(translated) < len(segments) * 0.5:
+            return segments
+
+        time.sleep(2)
+        return translated
+
+    except Exception as e:
+        print(f"Translation failed: {e}")
+        return segments  # fallback ke original

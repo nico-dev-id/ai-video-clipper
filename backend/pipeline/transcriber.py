@@ -1,12 +1,12 @@
 import whisper
 import os
 
-def transcribe_video(video_path: str) -> list[dict]:
+def transcribe_video(video_path: str) -> dict:
     """
     Transkripsi audio dari video menggunakan Whisper.
-    Return: list of segments, masing-masing berisi start, end, text.
+    Return: dict berisi segments dan detected_language.
     """
-    model = whisper.load_model("base")  # 'base' cukup cepat untuk testing
+    model = whisper.load_model("base")
 
     result = model.transcribe(video_path, verbose=False)
 
@@ -18,4 +18,7 @@ def transcribe_video(video_path: str) -> list[dict]:
             "text": seg["text"].strip(),
         })
 
-    return segments
+    return {
+        "segments": segments,
+        "language": result["language"],  # "id", "en", "ar", dll
+    }

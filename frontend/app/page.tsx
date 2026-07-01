@@ -8,6 +8,7 @@ interface Clip {
   start: number;
   end: number;
   reason: string;
+  title: string;
   hook: string;
   benefit: string;
   description: string;
@@ -300,6 +301,22 @@ export default function Home() {
                       <span className="text-indigo-400 font-medium">AI insight: </span>
                       {clip.reason}
                     </p>
+
+                    {/* Judul Video */}
+                    {clip.title && (
+                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest">Judul Upload</p>
+                          <button
+                            onClick={() => handleCopy(clip.title, `title-${clip.clip_number}`)}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                          >
+                            {copiedIndex === `title-${clip.clip_number}` ? "✅ Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <p className="text-white text-sm font-medium leading-relaxed">{clip.title}</p>
+                      </div>
+                    )}
 
                     {/* Hook + Benefit */}
                     {(clip.hook || clip.benefit) && (

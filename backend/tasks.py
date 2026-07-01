@@ -1,7 +1,7 @@
 from celery_app import celery_app
 from pipeline.downloader import download_video
 from pipeline.transcriber import transcribe_video
-from pipeline.analyzer import analyze_transcript, generate_hook_text
+from pipeline.analyzer import analyze_transcript, generate_hook_text, translate_segments_to_indonesian
 from pipeline.clipper import fix_overlapping_clips, create_clip
 from pipeline.thumbnail import generate_thumbnail
 
@@ -26,18 +26,39 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
             "status": "Transcribing audio with Whisper AI...",
             "percent": 25,
         })
-        segments = transcribe_video(video_info["video_path"])
+
+        transcribe_result = transcribe_video(video_info["video_path"])
+        segments_original = transcribe_result["segments"]
+        detected_language = transcribe_result["language"]
+
         self.update_state(state="PROGRESS", meta={
-            "status": f"Transcription complete: {len(segments)} segments found",
+            "status": f"Transcription complete: {len(segments_original)} segments ({detected_language})",
             "percent": 50,
         })
+
+        # Translate ke Indonesia kalau bukan bahasa Indonesia
+        if detected_language != "id":
+            self.update_state(state="PROGRESS", meta={
+                "status": f"Translating from {detected_language.upper()} to Bahasa Indonesia...",
+                "percent": 52,
+            })
+            segments_translated = translate_segments_to_indonesian(segments_original)
+            self.update_state(state="PROGRESS", meta={
+                "status": "Translation complete!",
+                "percent": 54,
+            })
+        else:
+            segments_translated = segments_original
 
         self.update_state(state="PROGRESS", meta={
             "status": "AI analyzing best segments...",
             "percent": 55,
         })
-        clips = analyze_transcript(segments, video_info["duration"], num_clips=num_clips)
+
+        # Analyze pakai transcript original
+        clips = analyze_transcript(segments_original, video_info["duration"], num_clips=num_clips)
         clips = fix_overlapping_clips(clips, video_info["duration"])
+
         self.update_state(state="PROGRESS", meta={
             "status": f"Analysis complete: {len(clips)} clips selected",
             "percent": 65,
@@ -52,29 +73,39 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
         results = []
         for i, clip in enumerate(clips):
             percent = 65 + int((i / len(clips)) * 30)
+
+            # Generate hook dulu sebelum render
+            self.update_state(state="PROGRESS", meta={
+                "status": f"AI generating content for clip {i+1}...",
+                "percent": percent,
+            })
+            clip_segments_text = " ".join(
+                s["text"] for s in segments_original
+                if s["end"] > clip["start"] and s["start"] < clip["end"]
+            )
+            hook_data = generate_hook_text(clip_segments_text)
+
+            # Render clip
             self.update_state(state="PROGRESS", meta={
                 "status": f"Rendering clip {i+1} of {len(clips)}...",
-                "percent": percent,
+                "percent": percent + 2,
             })
             path = create_clip(
                 video_path=video_info["video_path"],
                 clip_info=clip,
-                segments=segments,
+                segments=segments_translated,
                 source_title=video_info["title"],
                 source_channel=video_info["channel"],
                 clip_index=i + 1,
                 output_dir=clips_dir,
+                hook_data=hook_data,
             )
 
+            # Generate thumbnail
             self.update_state(state="PROGRESS", meta={
                 "status": f"Generating thumbnail for clip {i+1}...",
-                "percent": percent + 2,
+                "percent": percent + 4,
             })
-            clip_segments_text = " ".join(
-                s["text"] for s in segments
-                if s["end"] > clip["start"] and s["start"] < clip["end"]
-            )
-            hook_data = generate_hook_text(clip_segments_text)
             thumbnail_path = generate_thumbnail(
                 path,
                 hook_data,
@@ -89,6 +120,7 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
                 "start": clip["start"],
                 "end": clip["end"],
                 "reason": clip["reason"],
+                "title": hook_data["title"],
                 "hook": hook_data["hook"],
                 "benefit": hook_data["benefit"],
                 "description": hook_data["description"],
