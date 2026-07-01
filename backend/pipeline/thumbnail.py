@@ -108,7 +108,7 @@ def generate_thumbnail(clip_path: str, hook_data: dict, clip_index: int, output_
         font_path=FONT_PATH,
         W=W,
         max_width=max_width,
-        area_top=60,
+        area_top=80,
         area_height=top_area_height - 20,
         font_size_start=font_size_start,
     )

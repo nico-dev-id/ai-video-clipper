@@ -8,7 +8,12 @@ interface Clip {
   start: number;
   end: number;
   reason: string;
+  hook: string;
+  benefit: string;
+  description: string;
+  hashtags: string;
   url: string;
+  thumbnail_url: string;
 }
 
 interface GenerateResponse {
@@ -35,6 +40,7 @@ export default function Home() {
   const [percent, setPercent] = useState(0);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState("");
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const stopPolling = () => {
@@ -107,6 +113,12 @@ export default function Home() {
     return `${m}m ${s}s`;
   };
 
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(key);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   const steps = [
     { label: "Download", threshold: 20 },
     { label: "Transkripsi", threshold: 50 },
@@ -168,8 +180,8 @@ export default function Home() {
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">
               Jumlah Clip
             </label>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5, 7, 10].map((n) => (
+            <div className="flex gap-2 flex-wrap">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                 <button
                   key={n}
                   onClick={() => setNumClips(n)}
@@ -203,7 +215,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Progress bar */}
             <div className="w-full bg-white/10 rounded-full h-2 mb-4">
               <div
                 className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-700"
@@ -211,7 +222,6 @@ export default function Home() {
               />
             </div>
 
-            {/* Step labels */}
             <div className="flex justify-between">
               {steps.map((s) => (
                 <div key={s.label} className="flex flex-col items-center gap-1">
@@ -261,19 +271,22 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-5">
+            <div className="grid grid-cols-1 gap-8">
               {result.clips.map((clip) => (
                 <div
                   key={clip.clip_number}
                   className="bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden hover:border-indigo-500/30 transition-all duration-300"
                 >
+                  {/* Video */}
                   <video
                     controls
                     className="w-full max-h-[480px] bg-black"
                     src={`http://localhost:8000${clip.url}`}
                   />
-                  <div className="p-5">
-                    <div className="flex items-center gap-3 mb-3">
+
+                  <div className="p-5 space-y-4">
+                    {/* Clip number + timestamp */}
+                    <div className="flex items-center gap-3">
                       <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-xs px-3 py-1 rounded-full font-bold">
                         CLIP #{clip.clip_number}
                       </span>
@@ -281,10 +294,62 @@ export default function Home() {
                         {clip.start}s → {clip.end}s
                       </span>
                     </div>
+
+                    {/* AI Insight */}
                     <p className="text-gray-400 text-sm leading-relaxed">
                       <span className="text-indigo-400 font-medium">AI insight: </span>
                       {clip.reason}
                     </p>
+
+                    {/* Hook + Benefit */}
+                    {(clip.hook || clip.benefit) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {clip.hook && (
+                          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+                            <p className="text-yellow-400 text-xs font-semibold uppercase tracking-widest mb-1">Hook (Atas)</p>
+                            <p className="text-white text-sm font-bold">{clip.hook}</p>
+                          </div>
+                        )}
+                        {clip.benefit && (
+                          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+                            <p className="text-green-400 text-xs font-semibold uppercase tracking-widest mb-1">Benefit (Bawah)</p>
+                            <p className="text-white text-sm font-bold">{clip.benefit}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    {clip.description && (
+                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest">Deskripsi</p>
+                          <button
+                            onClick={() => handleCopy(clip.description, `desc-${clip.clip_number}`)}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                          >
+                            {copiedIndex === `desc-${clip.clip_number}` ? "✅ Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <p className="text-gray-300 text-sm leading-relaxed">{clip.description}</p>
+                      </div>
+                    )}
+
+                    {/* Hashtags */}
+                    {clip.hashtags && (
+                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest">Hashtags</p>
+                          <button
+                            onClick={() => handleCopy(clip.hashtags, `hash-${clip.clip_number}`)}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                          >
+                            {copiedIndex === `hash-${clip.clip_number}` ? "✅ Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <p className="text-indigo-300 text-sm">{clip.hashtags}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

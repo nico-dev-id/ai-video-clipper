@@ -190,29 +190,25 @@ def analyze_transcript(segments: list[dict], video_duration: int, num_clips: int
     return all_clips
 
 def generate_hook_text(clip_text: str) -> dict:
-    """Generate hook text (atas) dan benefit text (bawah) untuk thumbnail."""
+    """Generate hook, benefit, description, dan hashtag untuk tiap clip."""
     prompt = f"""
-You are a viral YouTube Shorts content strategist. Based on this transcript, generate TWO short texts for a thumbnail.
-
-TEXT 1 - HOOK (top of thumbnail): A provocative question or shocking statement that creates curiosity. Max 5 words. Make it feel urgent and personal.
-TEXT 2 - BENEFIT (bottom of thumbnail): What the viewer will gain or learn. Max 5 words. Make it feel like a revelation or transformation.
-
-Examples:
-- Hook: "KENAPA KAMU SELALU GAGAL?"
-- Benefit: "INI YANG MENGUBAH SEGALANYA"
-
-Or:
-- Hook: "RAHASIA YANG DISEMBUNYIKAN ORANG KAYA"
-- Benefit: "MULAI DARI NOL BISA KAYA"
-
-TRANSCRIPT:
-{clip_text}
+You are a viral YouTube Shorts content strategist for Indonesian audience. Based on this transcript, generate content for a YouTube Shorts post.
 
 Return ONLY this JSON, no explanation:
 {{
-  "hook": "provocative question or statement here",
-  "benefit": "what viewer will gain here"
+  "hook": "provocative question or shocking statement max 5 words in Indonesian",
+  "benefit": "what viewer will gain max 5 words in Indonesian",
+  "description": "2-3 sentences in Indonesian that feels relatable to daily life, creates emotional connection, and makes people want to watch. End with a call to action.",
+  "hashtags": "#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5 #hashtag6 #hashtag7 #hashtag8"
 }}
+
+Rules:
+- hook and benefit: SHORT, max 5 words, ALL CAPS, provocative
+- description: conversational Indonesian, relatable, emotional, end with CTA like "Tonton sampai habis!" or "Share ke yang butuh ini!"
+- hashtags: mix of Indonesian viral hashtags + topic-specific, 8 hashtags total
+
+TRANSCRIPT:
+{clip_text}
 """
     try:
         response = client.chat.completions.create(
@@ -227,9 +223,13 @@ Return ONLY this JSON, no explanation:
         return {
             "hook": data.get("hook", "RAHASIA TERUNGKAP"),
             "benefit": data.get("benefit", "HIDUP BERUBAH SETELAH INI"),
+            "description": data.get("description", ""),
+            "hashtags": data.get("hashtags", "#shorts #viral #fyp #indonesia"),
         }
     except Exception:
         return {
             "hook": "RAHASIA TERUNGKAP",
             "benefit": "HIDUP BERUBAH SETELAH INI",
+            "description": "",
+            "hashtags": "#shorts #viral #fyp #indonesia",
         }

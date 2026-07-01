@@ -91,6 +91,8 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
                 "reason": clip["reason"],
                 "hook": hook_data["hook"],
                 "benefit": hook_data["benefit"],
+                "description": hook_data["description"],
+                "hashtags": hook_data["hashtags"],
                 "url": f"/outputs/{video_id}/clips/clip_{i + 1}.mp4",
                 "thumbnail_url": f"/outputs/{video_id}/thumbnails/thumbnail_{i + 1}.jpg",
             })
