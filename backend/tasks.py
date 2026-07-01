@@ -1,24 +1,27 @@
 from celery_app import celery_app
 from pipeline.downloader import download_video
 from pipeline.transcriber import transcribe_video
-from pipeline.analyzer import analyze_transcript
+from pipeline.analyzer import analyze_transcript, generate_hook_text
 from pipeline.clipper import fix_overlapping_clips, create_clip
+from pipeline.thumbnail import generate_thumbnail
 
 @celery_app.task(bind=True)
 def generate_clips_task(self, url: str, num_clips: int = 5):
     try:
-        # Step 1: Download (0-20%)
         self.update_state(state="PROGRESS", meta={
             "status": "Downloading video from YouTube...",
             "percent": 5,
         })
         video_info = download_video(url)
+        video_id = video_info["video_id"]
+        clips_dir = f"{video_info['output_dir']}/clips"
+        thumbnails_dir = f"{video_info['output_dir']}/thumbnails"
+
         self.update_state(state="PROGRESS", meta={
             "status": f"Download complete: {video_info['title'][:50]}",
             "percent": 20,
         })
 
-        # Step 2: Transcribe (20-50%)
         self.update_state(state="PROGRESS", meta={
             "status": "Transcribing audio with Whisper AI...",
             "percent": 25,
@@ -29,7 +32,6 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
             "percent": 50,
         })
 
-        # Step 3: Analyze (50-65%)
         self.update_state(state="PROGRESS", meta={
             "status": "AI analyzing best segments...",
             "percent": 55,
@@ -47,10 +49,9 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
                 "error": "No clips could be generated. Possible cause: AI rate limit reached. Please try again later.",
             }
 
-        # Step 4: Render clips (65-100%)
         results = []
         for i, clip in enumerate(clips):
-            percent = 65 + int((i / len(clips)) * 35)
+            percent = 65 + int((i / len(clips)) * 30)
             self.update_state(state="PROGRESS", meta={
                 "status": f"Rendering clip {i+1} of {len(clips)}...",
                 "percent": percent,
@@ -62,13 +63,36 @@ def generate_clips_task(self, url: str, num_clips: int = 5):
                 source_title=video_info["title"],
                 source_channel=video_info["channel"],
                 clip_index=i + 1,
+                output_dir=clips_dir,
             )
+
+            self.update_state(state="PROGRESS", meta={
+                "status": f"Generating thumbnail for clip {i+1}...",
+                "percent": percent + 2,
+            })
+            clip_segments_text = " ".join(
+                s["text"] for s in segments
+                if s["end"] > clip["start"] and s["start"] < clip["end"]
+            )
+            hook_data = generate_hook_text(clip_segments_text)
+            thumbnail_path = generate_thumbnail(
+                path,
+                hook_data,
+                i + 1,
+                thumbnails_dir,
+                source_video_path=video_info["video_path"],
+                clip_start=clip["start"],
+            )
+
             results.append({
                 "clip_number": i + 1,
                 "start": clip["start"],
                 "end": clip["end"],
                 "reason": clip["reason"],
-                "url": f"/clips/clip_{i + 1}.mp4",
+                "hook": hook_data["hook"],
+                "benefit": hook_data["benefit"],
+                "url": f"/outputs/{video_id}/clips/clip_{i + 1}.mp4",
+                "thumbnail_url": f"/outputs/{video_id}/thumbnails/thumbnail_{i + 1}.jpg",
             })
 
         return {

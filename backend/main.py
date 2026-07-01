@@ -16,8 +16,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.makedirs("outputs/clips", exist_ok=True)
-app.mount("/clips", StaticFiles(directory="outputs/clips"), name="clips")
+os.makedirs("outputs", exist_ok=True)
+app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 class GenerateRequest(BaseModel):
     url: str

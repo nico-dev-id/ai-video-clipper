@@ -111,12 +111,13 @@ def build_chunks(segments: list[dict], video_duration: int) -> list[dict]:
 
 def pick_clips_from_chunk(chunk: dict, num_clips: int, video_duration: int) -> list[dict]:
     prompt = f"""
-You are a viral content editor. From this transcript segment, select {num_clips} best 60-second clip.
+You are a viral content editor. From this transcript segment, select {num_clips} best clip for YouTube Shorts.
 
 RULES:
-- Each clip must be exactly 60 seconds (start to start+60)
-- Clips must NOT overlap - minimum 5 second gap
-- start cannot exceed {video_duration - 60} seconds
+- Clip duration should be between 30-90 seconds (flexible, not fixed)
+- IMPORTANT: End the clip at a natural breakpoint - finish the sentence or thought, don't cut mid-sentence
+- Start the clip at a natural beginning - start of a sentence or thought, not mid-sentence
+- start cannot exceed {video_duration - 30} seconds
 - Only pick timestamps within: {chunk['time_range']}
 - Return ONLY valid JSON
 
@@ -129,7 +130,7 @@ Return:
     {{
       "clip_number": 1,
       "start": 10.0,
-      "end": 70.0,
+      "end": 65.0,
       "reason": "why this is engaging"
     }}
   ]
@@ -154,7 +155,10 @@ def analyze_transcript(segments: list[dict], video_duration: int, num_clips: int
         return []
 
     if len(chunks) == 1:
-        return pick_clips_from_chunk(chunks[0], num_clips, video_duration)
+        print("DEBUG: only 1 chunk, picking directly")
+        result = pick_clips_from_chunk(chunks[0], num_clips, video_duration)
+        print(f"DEBUG: clips returned = {result}")
+        return result
 
     scored_chunks = score_chunks(chunks)
 
@@ -171,13 +175,61 @@ def analyze_transcript(segments: list[dict], video_duration: int, num_clips: int
     clip_number = 1
     for chunk in top_chunks:
         try:
+            print(f"Picking clip from chunk: {chunk['time_range']}")
             clips = pick_clips_from_chunk(chunk, 1, video_duration)
+            print(f"Got clips: {clips}")
             for clip in clips:
                 clip["clip_number"] = clip_number
                 all_clips.append(clip)
                 clip_number += 1
         except Exception as e:
-            print(f"Failed to pick clip from chunk {chunk['time_range']}: {e}")
+            print(f"FAILED chunk {chunk['time_range']}: {e}")
             continue
 
+    print(f"Total clips collected: {len(all_clips)}")
     return all_clips
+
+def generate_hook_text(clip_text: str) -> dict:
+    """Generate hook text (atas) dan benefit text (bawah) untuk thumbnail."""
+    prompt = f"""
+You are a viral YouTube Shorts content strategist. Based on this transcript, generate TWO short texts for a thumbnail.
+
+TEXT 1 - HOOK (top of thumbnail): A provocative question or shocking statement that creates curiosity. Max 5 words. Make it feel urgent and personal.
+TEXT 2 - BENEFIT (bottom of thumbnail): What the viewer will gain or learn. Max 5 words. Make it feel like a revelation or transformation.
+
+Examples:
+- Hook: "KENAPA KAMU SELALU GAGAL?"
+- Benefit: "INI YANG MENGUBAH SEGALANYA"
+
+Or:
+- Hook: "RAHASIA YANG DISEMBUNYIKAN ORANG KAYA"
+- Benefit: "MULAI DARI NOL BISA KAYA"
+
+TRANSCRIPT:
+{clip_text}
+
+Return ONLY this JSON, no explanation:
+{{
+  "hook": "provocative question or statement here",
+  "benefit": "what viewer will gain here"
+}}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+        )
+        raw = response.choices[0].message.content
+        clean = raw.replace("```json", "").replace("```", "").strip()
+        data = json.loads(clean)
+        time.sleep(1)
+        return {
+            "hook": data.get("hook", "RAHASIA TERUNGKAP"),
+            "benefit": data.get("benefit", "HIDUP BERUBAH SETELAH INI"),
+        }
+    except Exception:
+        return {
+            "hook": "RAHASIA TERUNGKAP",
+            "benefit": "HIDUP BERUBAH SETELAH INI",
+        }
